@@ -50,57 +50,35 @@ def run():
 
         # print("TAC: ${:,}".format(round(sum(opcost + capcost))))
         return sum(opcost + capcost)
+    
 
     df = pd.DataFrame()
 
     for i in range(1,97):
-        print(f"Running stage {i}")
+        curr = [0,0,0,0,0]
+        for j in [0.1, 1, 10, 100]:
+            print(f"Running stage {i}, RR at {j}")
+            case.setSolver(False)
+            col.setFeed(feed, i)
+            col.getSpec('Reflux ratio').IsActive = False
+            col.getSpec('Reflux ratio').IsActive = True
+            col.getSpec('Reflux ratio').Goal.SetValue(j)
+            case.setSolver(True)
+            col.run()
 
-        case.setSolver(False)
-        col.setFeed(feed, i)
-        col.getSpec('ANE recovery').IsActive = False
-        col.getSpec('Reflux ratio').IsActive = True
-        col.getSpec('Reflux ratio').IsActive = False
-        col.getSpec('ANE recovery').IsActive = True
-        case.setSolver(True)
-        col.run()
-
-        for _ in range(3):
             if not col.isConverged():
-                print(f"Error at stage {i}: Trying with reflux spec")
-                case.setSolver(False)
-                col.setFeed(feed, i)
-                col.getSpec('ANE recovery').IsActive = False
-                col.getSpec('Reflux ratio').IsActive = False
-                col.getSpec('Reflux ratio').IsActive = True
-                case.setSolver(True)
-                col.run()
-            
-                if col.isConverged():
-                    print(f"Stage {i} converged with reflux spec, trying back main spec")
-                    case.setSolver(False)
-                    col.setFeed(feed, i)
-                    col.getSpec('ANE recovery').IsActive = False
-                    col.getSpec('Reflux ratio').IsActive = True
-                    col.getSpec('Reflux ratio').IsActive = False
-                    col.getSpec('ANE recovery').IsActive = True
-                    case.setSolver(True)
-                    col.run()
+                print(f"Error at stage {i}, RR {j} Skipping step")
+            elif col.getSpecValue("ANE recovery") > curr[2]:
+                curr = [i, getTAC(), col.getSpecValue("ANE recovery"), col.getSpecValue("ENE recovery"), col.getSpecValue("DMF recovery")]
 
-                    if not col.isConverged():
-                        print(f"Error at stage {i}: Trying back with reflux spec")
-                        case.setSolver(False)
-                        col.setFeed(feed, i)
-                        col.getSpec('ANE recovery').IsActive = False
-                        col.getSpec('Reflux ratio').IsActive = False
-                        col.getSpec('Reflux ratio').IsActive = True
-                        case.setSolver(True)
-                        col.run()
+            if col.isConverged() and col.getSpecValue("ANE recovery") > 0.99:
+                df = df.append([curr])
+                break
+        
+        # if not appended:
+        #     df = df.append([curr])
 
-        if not col.isConverged():
-            print(f"Error at stage {i} Skipping stage")
-        else:
-            df = df.append([[i, getTAC(), col.getSpecValue("ANE recovery"), col.getSpecValue("ENE recovery"), col.getSpecValue("DMF recovery")]])
 
+        
     df.columns = ["Stage", "TAC", "ANE recovery", "ENE recovery", "DMF recovery"]
-    df.to_csv("varyfeed.csv")
+    df.to_csv("varydmf.csv")
